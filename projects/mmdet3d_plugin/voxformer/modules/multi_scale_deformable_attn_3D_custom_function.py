@@ -15,12 +15,13 @@ import sys
 
 # sys.path.append("/root/autodl-tmp/vox/mmcv-main/cntest/build/lib.linux-x86_64-cpython-38/")
 # sys.path.append("/home/yml/bevformer/mmdetection3d/deform_3d_cuda/")
-raise NotImplementedError("Use sys.path.append here to modify the path to your .so file")
-sys.path.append("/path/to/directory_containing_so_file")
+
+# raise NotImplementedError("Use sys.path.append here to modify the path to your .so file")
+# sys.path.append("/path/to/directory_containing_so_file")
 
 
 
-import deform3dattn_custom_cn as ext_module
+# import deform3dattn_custom_cn as ext_module
 
 
 class MultiScaleDeformableAttn3DCustomFunction_fp16(Function):
