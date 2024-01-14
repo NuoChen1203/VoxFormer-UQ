@@ -28,7 +28,9 @@ from mmdet.apis import set_random_seed
 from mmseg import __version__ as mmseg_version
 
 from mmcv.utils import TORCH_VERSION, digit_version
-
+import sys
+sys.path.append('/root/autodl-tmp/vox/mmdetection3d/VoxFormer-UQ')
+# sys.path.append('//home/yml/bevformer/mmdetection3d/VoxFormerplus')
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -204,6 +206,8 @@ def main():
     logger.info(f'Config:\n{cfg.pretty_text}')
 
     # set random seeds
+    import random
+    args.seed=random.randint(0,100000)
     if args.seed is not None:
         logger.info(f'Set random seed to {args.seed}, '
                     f'deterministic: {args.deterministic}')

@@ -185,7 +185,13 @@ def main():
         distributed = True
         init_dist(args.launcher, **cfg.dist_params)
 
+    # # set random seeds
+    # if args.seed is not None:
+    #     set_random_seed(args.seed, deterministic=args.deterministic)
+        
     # set random seeds
+    import random
+    args.seed=random.randint(0,100000)
     if args.seed is not None:
         set_random_seed(args.seed, deterministic=args.deterministic)
 

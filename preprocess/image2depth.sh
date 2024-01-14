@@ -26,12 +26,12 @@ do
     exeFunc 389.6304 $i     
 done
 
-for i in {04..12}
+for i in {04..10}
 do
     exeFunc 381.8293 $i     
 done
 
-for i in {13..21}
-do
-    exeFunc 388.1823 $i     
-done
+# for i in {13..21}
+# do
+#     exeFunc 388.1823 $i     
+# done

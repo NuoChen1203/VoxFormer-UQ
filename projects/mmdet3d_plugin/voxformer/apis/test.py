@@ -50,6 +50,14 @@ def custom_encode_mask_results(mask_results):
                         dtype='uint8'))[0])  # encoded with RLE
     return [encoded_mask_results]
 
+
+def apply_dropout(m):
+    print(113)
+    import torch.nn as nn
+    if type(m) == nn.Dropout:
+        print("Dropout")
+        m.train()
+        
 def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
     """Test model with multiple gpus.
     This method tests model with multiple gpus and collects the results
@@ -68,6 +76,8 @@ def custom_multi_gpu_test(model, data_loader, tmpdir=None, gpu_collect=False):
     """
     
     model.eval()
+
+    # model.apply(apply_dropout)
     results = []
 
     dataset = data_loader.dataset

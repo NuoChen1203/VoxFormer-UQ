@@ -76,11 +76,22 @@ class LMSCNet_SS(MVXTwoStageDetector):
             1 / np.log(self.class_frequencies_level1 + 0.001)
         )
 
+        dropout_p=0.3
+
+        # self.drop1=nn.Dropout(dropout_p)
+        # self.drop2=nn.Dropout(dropout_p)
+        # self.drop3=nn.Dropout(dropout_p)
+
+        self.drop1=nn.Identity()
+        self.drop2=nn.Identity()
+        self.drop3=nn.Identity()
+
         self.Encoder_block1 = nn.Sequential(
         nn.Conv2d(f, f, kernel_size=3, padding=1, stride=1),
         nn.ReLU(),
         nn.Conv2d(f, f, kernel_size=3, padding=1, stride=1),
-        nn.ReLU()
+        nn.ReLU(),
+        # nn.Dropout(dropout_p)
         )
 
         self.Encoder_block2 = nn.Sequential(
@@ -88,7 +99,8 @@ class LMSCNet_SS(MVXTwoStageDetector):
         nn.Conv2d(f, int(f*1.5), kernel_size=3, padding=1, stride=1),
         nn.ReLU(),
         nn.Conv2d(int(f*1.5), int(f*1.5), kernel_size=3, padding=1, stride=1),
-        nn.ReLU()
+        nn.ReLU(),
+        # nn.Dropout(dropout_p)
         )
 
         self.Encoder_block3 = nn.Sequential(
@@ -96,7 +108,8 @@ class LMSCNet_SS(MVXTwoStageDetector):
         nn.Conv2d(int(f*1.5), int(f*2), kernel_size=3, padding=1, stride=1),
         nn.ReLU(),
         nn.Conv2d(int(f*2), int(f*2), kernel_size=3, padding=1, stride=1),
-        nn.ReLU()
+        nn.ReLU(),
+        # nn.Dropout(dropout_p)
         )
 
         self.Encoder_block4 = nn.Sequential(
@@ -104,7 +117,8 @@ class LMSCNet_SS(MVXTwoStageDetector):
         nn.Conv2d(int(f*2), int(f*2.5), kernel_size=3, padding=1, stride=1),
         nn.ReLU(),
         nn.Conv2d(int(f*2.5), int(f*2.5), kernel_size=3, padding=1, stride=1),
-        nn.ReLU()
+        nn.ReLU(),
+        # nn.Dropout(dropout_p)
         )
 
         # Treatment output 1:8
@@ -161,6 +175,8 @@ class LMSCNet_SS(MVXTwoStageDetector):
 
         # print('out_scale_1_8__2D.shape', out_scale_1_8__2D.shape)  # [1, 4, 32, 32]
 
+        # print(self.out_scale)
+
         if self.out_scale=="1_8":
           out_scale_1_8__3D = self.seg_head_1_8(out_scale_1_8__2D) # [1, 20, 16, 128, 128]
           out_scale_1_8__3D = out_scale_1_8__3D.permute(0, 1, 3, 4, 2) # [1, 20, 128, 128, 16]
@@ -182,12 +198,14 @@ class LMSCNet_SS(MVXTwoStageDetector):
           out = self.deconv1_8(out_scale_1_8__2D)
           out = torch.cat((out, _skip_1_4), 1)
           out = F.relu(self.conv1_4(out))
+          out = self.drop1(out)
           out_scale_1_4__2D = self.conv_out_scale_1_4(out)
 
           # Out 1_2
           out = self.deconv1_4(out_scale_1_4__2D)
           out = torch.cat((out, _skip_1_2, self.deconv_1_8__1_2(out_scale_1_8__2D)), 1)
           out = F.relu(self.conv1_2(out)) # torch.Size([1, 48, 128, 128])
+          out = self.drop2(out)
           out_scale_1_2__2D = self.conv_out_scale_1_2(out) # torch.Size([1, 16, 128, 128])
 
           out_scale_1_2__3D = self.seg_head_1_2(out_scale_1_2__2D) # [1, 20, 16, 128, 128]
@@ -278,6 +296,83 @@ class LMSCNet_SS(MVXTwoStageDetector):
 
         return losses
 
+    
+    def nll(self, y_pred, target, img_metas):
+        cls_prob = y_pred  # Model's predictions
+        target = target.cpu().numpy().astype(np.int32)  # Convert target to NumPy array
+
+        # Index arrays for advanced indexing
+        batch_index = np.arange(cls_prob.shape[0])[:, None, None, None]
+        height_index = np.arange(cls_prob.shape[2])[None, :, None, None]
+        width_index = np.arange(cls_prob.shape[3])[None, None, :, None]
+        depth_index = np.arange(cls_prob.shape[4])[None, None, None, :]
+
+        mask = target != 255  # Mask to exclude pixels with 255 in target
+        target_valid = np.where(mask, target, 0)  # Replace 255 with 0 in target
+
+        # Extract probabilities for the actual classes
+        correct_probs = cls_prob[batch_index, target_valid, height_index, width_index, depth_index]
+        correct_probs_masked = correct_probs[mask]
+
+        # Calculate Negative Log-Likelihood
+        nll = -np.log(correct_probs_masked)
+        total_nll = np.sum(nll)
+        mean_nll = np.mean(nll)
+
+        # Print mean NLL and frame ID
+        # print("\nmean_nll", mean_nll, img_metas[0]["frame_id"])
+        return mean_nll
+
+
+    def crps(self, y_pred, target, img_metas):
+        from properscoring import crps_ensemble
+
+        cls_prob = y_pred  # Model's predicted probabilities
+        target = target.cpu().numpy().astype(np.int32)  # Convert target to a NumPy array
+
+        num_classes = 2  # Assuming there are 20 classes
+        batch_size, _, height, width, depth = cls_prob.shape  # Extract shape information from predictions
+
+        # Create a mask to identify valid pixels (not marked as 255 in the target)
+        mask = target != 255
+
+        # Initialize an array for one-hot encoding of the target
+        target_one_hot = np.zeros((batch_size, num_classes, height, width, depth))
+
+        # Create one-hot encoding for each valid pixel
+        for c in range(num_classes):
+            target_one_hot[:, c, :, :, :] = (target == c) & mask
+
+        # Calculate CRPS for the predictions compared to the one-hot encoded target
+        # raise NotImplementedError(cls_prob.shape, target_one_hot.shape)
+        crps = crps_ensemble(cls_prob, target_one_hot)
+        crps = crps.mean()  # Compute the mean CRPS across all pixels
+        # print("crps", crps, img_metas[0]["frame_id"])  # Print the mean CRPS and frame ID
+        return crps
+
+    def ece(self, y_pred, target, img_metas):
+        cls_prob = y_pred  # Model's predicted probabilities
+        # Assuming the calibration library 'cal' is correctly imported
+        import calibration as cal
+
+        # Create a mask to exclude pixels marked as 255 in the target
+        mask = target != 255
+
+        # Flatten the target and apply the mask
+        target_flat_masked = target[mask].flatten()
+
+        # Reshape cls_prob and apply the mask, then convert to a NumPy array
+        # Reshape to (N, 20), where N = 1*256*256*32 (flattened dimensions of the input)
+        cls_prob_reshaped = cls_prob.permute(0, 2, 3, 4, 1).reshape(-1, 2)
+        cls_prob_masked_flat = cls_prob_reshaped[mask.view(-1), :].cpu().numpy()
+
+        # Calculate the marginal calibration error
+        cls_marginal_calibration_error = cal.get_calibration_error(
+            cls_prob_masked_flat, target_flat_masked.cpu().numpy().astype(np.int32))
+        # print("\ncls_marginal_calibration_error", cls_marginal_calibration_error, img_metas[0]["frame_id"])  # Print calibration error and frame ID
+        return cls_marginal_calibration_error
+
+
     def foward_test(self,
                         img_metas=None,
                         sequence_id=None,
@@ -302,19 +397,78 @@ class LMSCNet_SS(MVXTwoStageDetector):
         ssc_pred = self.step(depth.permute(0, 3, 1, 2).to(target.device))
 
         y_pred = ssc_pred.detach().cpu().numpy() # [1, 20, 128, 128, 16]
-        y_pred = np.argmax(y_pred, axis=1).astype(np.uint8) # [1, 128, 128, 16]
+        
 
         #save query proposal 
         img_path = img_metas[0]['img_filename'] 
         frame_id = os.path.splitext(img_path[0])[0][-6:]
+        sequence_id = str(img_metas[0]['sequence_id']).zfill(2)
+
+
+        # raise NotImplementedError(img_metas[0].keys(),sequence_id)
+
+        #存储结果
+        root="/root/autodl-tmp/vox/mmdetection3d/VoxFormer-UQ/deepensemble_qpn/04/"
+        os.makedirs(os.path.join(root,sequence_id),exist_ok=True)
+        np.save(os.path.join(root,sequence_id,str(frame_id).zfill(8)+".npy"),y_pred)
+
+        #         #读取10个结果
+        # root="/root/autodl-tmp/vox/mmdetection3d/VoxFormer-UQ/MCDropout_qpn"
+        # y_pred_list=[]
+        # print(img_metas[0].keys())
+        # for i in range(10):
+        #     try:
+        #         y_pred_tmp = np.load(root+"/"+str(i).zfill(2)+"/"+str(frame_id).zfill(8)+".npy")
+        #         y_pred_list.append(y_pred_tmp)
+        #     except:
+        #         print(root+"/"+str(i).zfill(2)+"/"+str(frame_id).zfill(8)+".npy")
+        # #求平均值
+        # y_pred=np.mean(y_pred_list,axis=0)
+        # y_pred = torch.softmax(torch.from_numpy(y_pred), dim=1).detach().cpu().numpy()
+           
+
+        
+        # nll=self.nll(y_pred, target, img_metas)
+        # crps=self.crps(y_pred, target, img_metas)
+        # # ece=self.ece(torch.from_numpy(y_pred).to(ssc_pred.device), 
+        # #           target, img_metas)
+
+        #         #nll 和 crps存成numpy
+        # # outnp=np.array([nll,crps,ece])
+        # outnp=np.array([nll,crps])
+
+        # root="/root/autodl-tmp/vox/mmdetection3d/VoxFormer-UQ/uq_out/"
+        # os.makedirs(root,exist_ok=True)
+        # np.save(root+str(frame_id).zfill(8)+".npy",outnp)
+
+
+        y_pred = np.argmax(y_pred, axis=1).astype(np.uint8) # [1, 128, 128, 16]
+
+        # y_pred = torch.softmax(torch.from_numpy(y_pred).to(self.bev_embed.weight.device), dim=1).detach().cpu().numpy()
+        
+
+
+        # #nll 和 crps存成numpy
+        # outnp=np.array([nll,crps,ece])
+        # # outnp=np.array([nll,crps])
+
+        # root="/root/autodl-tmp/vox/mmdetection3d/VoxFormer-UQ/uq_out/"
+        # os.makedirs(root,exist_ok=True)
+        # np.save(root+img_metas[0]["frame_id"]+".npy",outnp)
+
+
+
+
+
+        # np.savez_compressed(root + img_metas[0]["frame_id"] + ".npz", y_pred=y_pred)
 
         # msnet3d
         # if not os.path.exists(os.path.join("./kitti/dataset/sequences_msnet3d_sweep10", img_metas[0]['sequence_id'], 'queries')):
             # os.makedirs(os.path.join("./kitti/dataset/sequences_msnet3d_sweep10", img_metas[0]['sequence_id'], 'queries'))
         # save_query_path = os.path.join("./kitti/dataset/sequences_msnet3d_sweep10", img_metas[0]['sequence_id'], 'queries', frame_id + ".query_iou5203_pre7712_rec6153")
 
-        y_pred_bin = self.pack(y_pred)
-        y_pred_bin.tofile(save_query_path)
+        # y_pred_bin = self.pack(y_pred)
+        # y_pred_bin.tofile(save_query_path)
         #---------------------------------------------------------------------------------------------------
         
         result = dict()

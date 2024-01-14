@@ -207,5 +207,5 @@ log_config = dict(
        dict(type='TensorboardLoggerHook')
    ])
 
-checkpoint_config = None
-# checkpoint_config = dict(interval=2)
+# checkpoint_config = None
+checkpoint_config = dict(interval=1)
