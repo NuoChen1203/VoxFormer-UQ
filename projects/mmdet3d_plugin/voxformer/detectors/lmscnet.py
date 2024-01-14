@@ -408,7 +408,8 @@ class LMSCNet_SS(MVXTwoStageDetector):
         # raise NotImplementedError(img_metas[0].keys(),sequence_id)
 
         #存储结果
-        root="/root/autodl-tmp/vox/mmdetection3d/VoxFormer-UQ/deepensemble_qpn/04/"
+        # root="/root/autodl-tmp/vox/mmdetection3d/VoxFormer-UQ/deepensemble_qpn/04/"
+        root="./deepensemble_qpn/00/"
         os.makedirs(os.path.join(root,sequence_id),exist_ok=True)
         np.save(os.path.join(root,sequence_id,str(frame_id).zfill(8)+".npy"),y_pred)
 
