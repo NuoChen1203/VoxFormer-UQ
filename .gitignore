@@ -37,11 +37,13 @@ uqvoxensemb/
 
 # tmp/vox/mmdetection3d/VoxFormer-UQ/result/voxformer_0/qpn/epoch_20.pth 2
 
+# mkdir -p my_result/voxformer_0/qpn
 # mkdir -p my_result/voxformer_1/qpn
 # mkdir -p my_result/voxformer_2/qpn
 # mkdir -p my_result/voxformer_3/qpn
 # mkdir -p my_result/voxformer_4/qpn
 
+# cp result/voxformer_0/qpn/epoch_20.pth  my_result/voxformer_0/qpn/epoch_20.pth  
 # cp result/voxformer_1/qpn/epoch_19.pth  my_result/voxformer_1/qpn/epoch_19.pth  
 # cp result/voxformer_2/qpn/epoch_23.pth  my_result/voxformer_2/qpn/epoch_23.pth  
 # cp result/voxformer_3/qpn/epoch_18.pth  my_result/voxformer_3/qpn/epoch_18.pth  
